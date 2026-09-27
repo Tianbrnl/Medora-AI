@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ShieldCheck, Lock, Mail, Eye, EyeOff } from "lucide-react";
 import medoraLogo from "../assets/medora_logo.png";
 import Button from "../components/ui/Button";
+import ForgotPasswordModal from "../components/auth/ForgotPasswordModal";
 import { useChat } from "../context/ChatContext";
 
 export default function Login() {
@@ -10,7 +11,10 @@ export default function Login() {
   const [password, setPassword] = useState("••••••••••••");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useChat();
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+
+  const navigate = useNavigate();
+  const { login, showToast } = useChat();
 
   const handleSignIn = (e) => {
     e.preventDefault();
@@ -57,7 +61,6 @@ export default function Login() {
 
           <p className="text-teal-100/90 text-sm leading-relaxed">
             Review symptoms, explore medication, and access artificial intelligent clinical support built specifically for doctors.
-
           </p>
 
           <div className="pt-4 border-t border-teal-800/80 space-y-2">
@@ -73,42 +76,37 @@ export default function Login() {
         </div>
 
         <div className="relative z-10 text-xs text-teal-300/80">
-          © {new Date().getFullYear()} MedoraAI. Educational AI platform.
+          MedoraAI Clinical Decision Support
         </div>
       </div>
 
-      {/* Right Login Area */}
-      <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-10 lg:p-16 bg-slate-50 dark:bg-black transition-colors duration-200">
+      {/* Right Sign-in Form Panel */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-md space-y-8">
-          {/* Mobile branding header */}
-          <div className="lg:hidden text-center space-y-2">
-            <Link to="/" className="inline-flex items-center gap-2">
+          <div className="text-center lg:text-left space-y-2">
+            <div className="lg:hidden flex items-center justify-center gap-2.5 mb-6">
               <img src={medoraLogo} alt="MedoraAI" className="w-9 h-9 object-contain" />
-              <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                Medora<span className="text-teal-500 dark:text-teal-400">AI</span>
+              <span className="text-2xl font-bold tracking-tight">
+                Medora<span className="text-teal-500">AI</span>
               </span>
-            </Link>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+              Sign In
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+              Access your clinical intelligence assistant
+            </p>
           </div>
 
-          {/* Login Card */}
-          <div className="bg-white dark:bg-[#111111] rounded-3xl border border-slate-200 dark:border-[#242424] p-6 sm:p-8 shadow-2xl shadow-slate-200/50 dark:shadow-black/60 space-y-6">
-            <div className="space-y-1">
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                Welcome back
-              </h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Sign in to continue using MedoraAI.
-              </p>
-            </div>
-
-            {/* Google button */}
+          <div className="space-y-4">
+            {/* Google Sign-in Simulation */}
             <button
               type="button"
               onClick={handleGoogleSignIn}
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#2c2c2c] bg-white dark:bg-[#181818] hover:bg-slate-50 dark:hover:bg-[#202020] text-slate-800 dark:text-slate-100 font-medium text-sm transition-all duration-150 active:scale-[0.99] shadow-xs cursor-pointer"
+              className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80 font-medium text-sm transition-all shadow-xs cursor-pointer"
             >
-              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -129,19 +127,18 @@ export default function Login() {
               <span>Continue with Google</span>
             </button>
 
-            {/* Divider */}
-            <div className="relative flex items-center justify-center">
+            <div className="relative flex items-center justify-center py-2">
               <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
-              <span className="bg-white dark:bg-[#111111] px-3 text-xs uppercase tracking-wider text-slate-400 font-semibold absolute">
-                OR
+              <span className="bg-slate-50 dark:bg-black px-3 text-xs uppercase text-slate-400 font-semibold absolute">
+                or
               </span>
             </div>
 
-            {/* Form */}
+            {/* Email / Password Form */}
             <form onSubmit={handleSignIn} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
-                  Email Address
+                  Email
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -161,16 +158,13 @@ export default function Login() {
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                     Password
                   </label>
-                  <a
-                    href="#forgot"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      alert("Password reset instructions simulated to your email.");
-                    }}
-                    className="text-xs text-teal-600 dark:text-teal-400 hover:underline font-medium"
+                  <button
+                    type="button"
+                    onClick={() => setIsForgotPasswordOpen(true)}
+                    className="text-xs text-teal-600 dark:text-teal-400 hover:underline font-medium cursor-pointer"
                   >
                     Forgot password?
-                  </a>
+                  </button>
                 </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -185,7 +179,7 @@ export default function Login() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                     aria-label="Toggle password visibility"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -215,6 +209,16 @@ export default function Login() {
           </div>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={isForgotPasswordOpen}
+        onClose={() => setIsForgotPasswordOpen(false)}
+        initialEmail={email === "john.doe@example.com" ? "" : email}
+        onSuccess={(submittedEmail) => {
+          showToast(`Password reset link sent to ${submittedEmail}`, "success");
+        }}
+      />
     </div>
   );
 }
