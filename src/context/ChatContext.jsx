@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect } from "react";
 import { initialConversations, mockUser } from "../data/mockConversations";
 import { initialMessages, generateMockAiResponse } from "../data/mockMessages";
 import { getInitials } from "../utils/userUtils";
-
+import { supabase } from "../lib/supabase";
 const ChatContext = createContext();
 
 export function ChatProvider({ children }) {
@@ -14,7 +14,64 @@ export function ChatProvider({ children }) {
       return initialConversations;
     }
   });
+  useEffect(() => {
+    let mounted = true;
 
+    const loadSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      setIsAuthenticated(!!session);
+
+      if (session?.user) {
+        const fullName =
+          session.user.user_metadata?.full_name ||
+          session.user.email?.split("@")[0] ||
+          "Doctor";
+
+        setUser((prev) => ({
+          ...prev,
+          name: fullName,
+          email: session.user.email,
+          initials: getInitials(fullName),
+          avatarUrl: null,
+        }));
+      }
+
+      setAuthLoading(false);
+    };
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session);
+
+      if (session?.user) {
+        const fullName =
+          session.user.user_metadata?.full_name ||
+          session.user.email?.split("@")[0] ||
+          "Doctor";
+
+        setUser((prev) => ({
+          ...prev,
+          name: fullName,
+          email: session.user.email,
+          initials: getInitials(fullName),
+          avatarUrl: null,
+        }));
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
   const [messages, setMessages] = useState(() => {
     try {
       const saved = localStorage.getItem("doctorai_messages");
@@ -25,9 +82,8 @@ export function ChatProvider({ children }) {
   });
 
   const [isThinking, setIsThinking] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem("doctorai_auth") === "true";
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem("doctorai_user");
@@ -51,24 +107,18 @@ export function ChatProvider({ children }) {
 
   const [toastMessage, setToastMessage] = useState(null);
 
-  const login = (userData) => {
-    setIsAuthenticated(true);
-    localStorage.setItem("doctorai_auth", "true");
-    if (userData) {
-      setUser(prev => ({
-        ...prev,
-        ...userData,
-        initials: getInitials(userData.name || prev.name),
-        avatarUrl: null
-      }));
-    }
-    showToast("Signed in to DoctorAI", "success");
-  };
 
-  const logout = () => {
+
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      showToast(error.message || "Failed to sign out", "error");
+      return;
+    }
+
     setIsAuthenticated(false);
-    localStorage.setItem("doctorai_auth", "false");
-    showToast("Signed out of DoctorAI", "info");
+    showToast("Signed out of Medora", "info");
   };
 
   // Sync to local storage
@@ -287,7 +337,6 @@ export function ChatProvider({ children }) {
         clearAllConversations,
         toggleFeedback,
         isAuthenticated,
-        login,
         logout
       }}
     >
