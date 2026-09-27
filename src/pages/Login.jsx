@@ -4,35 +4,58 @@ import { ShieldCheck, Lock, Mail, Eye, EyeOff } from "lucide-react";
 import medoraLogo from "../assets/medora_logo.png";
 import Button from "../components/ui/Button";
 import ForgotPasswordModal from "../components/auth/ForgotPasswordModal";
-import { useChat } from "../context/ChatContext";
-
+import { supabase } from "../lib/supabase";
 export default function Login() {
-  const [email, setEmail] = useState("john.doe@example.com");
-  const [password, setPassword] = useState("••••••••••••");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
   const navigate = useNavigate();
-  const { login, showToast } = useChat();
 
-  const handleSignIn = (e) => {
+
+  const handleSignIn = async (e) => {
     e.preventDefault();
+
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      login({ name: "John Doe", email: email.trim() || "john.doe@example.com", initials: "JN" });
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
       navigate("/chat");
-    }, 500);
+    } catch (error) {
+      alert(error.message || "Invalid email or password.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
     setIsLoading(true);
-    setTimeout(() => {
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/chat`,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      alert(error.message || "Google sign-in failed.");
       setIsLoading(false);
-      login({ name: "John Doe", email: "john.doe@gmail.com", initials: "JN" });
-      navigate("/chat");
-    }, 500);
+    }
   };
 
   return (
@@ -100,7 +123,7 @@ export default function Login() {
 
           <div className="space-y-4">
             {/* Google Sign-in Simulation */}
-            <button
+            { /*<button
               type="button"
               onClick={handleGoogleSignIn}
               disabled={isLoading}
@@ -132,7 +155,7 @@ export default function Login() {
               <span className="bg-slate-50 dark:bg-black px-3 text-xs uppercase text-slate-400 font-semibold absolute">
                 or
               </span>
-            </div>
+            </div> 
 
             {/* Email / Password Form */}
             <form onSubmit={handleSignIn} className="space-y-4">
@@ -214,10 +237,7 @@ export default function Login() {
       <ForgotPasswordModal
         isOpen={isForgotPasswordOpen}
         onClose={() => setIsForgotPasswordOpen(false)}
-        initialEmail={email === "john.doe@example.com" ? "" : email}
-        onSuccess={(submittedEmail) => {
-          showToast(`Password reset link sent to ${submittedEmail}`, "success");
-        }}
+        initialEmail={email}
       />
     </div>
   );

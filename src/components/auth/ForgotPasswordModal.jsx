@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Mail, CheckCircle2, KeyRound, Loader2, ArrowLeft } from "lucide-react";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
-
+import { supabase } from "../../lib/supabase";
 export default function ForgotPasswordModal({
   isOpen,
   onClose,
@@ -45,9 +45,11 @@ export default function ForgotPasswordModal({
     return "";
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
     const validationError = validateEmail(email);
+
     if (validationError) {
       setError(validationError);
       return;
@@ -56,23 +58,54 @@ export default function ForgotPasswordModal({
     setError("");
     setIsLoading(true);
 
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        {
+          redirectTo: `${window.location.origin}/reset-password`,
+        }
+      );
+
+      if (error) {
+        throw error;
+      }
+
       setIsSubmitted(true);
+
       if (onSuccess) {
         onSuccess(email.trim());
       }
-    }, 700);
+    } catch (error) {
+      setError(error.message || "Failed to send password reset email.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    setError("");
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        {
+          redirectTo: `${window.location.origin}/reset-password`,
+        }
+      );
+
+      if (error) {
+        throw error;
+      }
+
       if (onSuccess) {
         onSuccess(email.trim());
       }
-    }, 600);
+    } catch (error) {
+      setError(error.message || "Failed to resend password reset email.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -160,11 +193,10 @@ export default function ForgotPasswordModal({
                   if (error) setError("");
                 }}
                 placeholder="name@example.com"
-                className={`w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-[#161616] border text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none transition-colors ${
-                  error
-                    ? "border-rose-500 focus:ring-1 focus:ring-rose-500"
-                    : "border-slate-200 dark:border-[#2a2a2a] focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-                }`}
+                className={`w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-[#161616] border text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none transition-colors ${error
+                  ? "border-rose-500 focus:ring-1 focus:ring-rose-500"
+                  : "border-slate-200 dark:border-[#2a2a2a] focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                  }`}
               />
             </div>
             {error && (

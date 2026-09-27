@@ -12,7 +12,7 @@ import Register from "./pages/Register";
 import Chat from "./pages/Chat";
 import Medications from "./pages/Medications";
 import Settings from "./pages/Settings";
-
+import ResetPassword from "./components/auth/ResetPassword";
 export default function App() {
   return (
     <ThemeProvider>
@@ -23,7 +23,7 @@ export default function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-
+            <Route path="/reset-password" element={<ResetPassword />} />
             {/* Application pages wrapped in AppLayout */}
             <Route element={<AppLayout />}>
               <Route path="/chat" element={<Chat />} />
