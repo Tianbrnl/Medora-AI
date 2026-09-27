@@ -72,10 +72,11 @@ export default function MedicalReference() {
                   key={cat.id}
                   type="button"
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 cursor-pointer ${isActive
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 cursor-pointer ${
+                    isActive
                       ? "bg-teal-600 text-white shadow-xs shadow-teal-700/20"
                       : "bg-slate-100 dark:bg-[#181818] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#2a2a2a] hover:bg-slate-200/60 dark:hover:bg-[#202020] hover:text-slate-900 dark:hover:text-white"
-                    }`}
+                  }`}
                 >
                   {cat.label}
                 </button>
