@@ -6,10 +6,18 @@ import ChatInput from "./ChatInput";
 import SuggestedPrompts from "./SuggestedPrompts";
 import TypingIndicator from "./TypingIndicator";
 
+
 export default function ChatWindow() {
   const { conversationId } = useParams();
   const navigate = useNavigate();
-  const { messages, isThinking, sendMessage, startNewConversation, settings } = useChat();
+  const {
+    messages,
+    isThinking,
+    sendMessage,
+    startNewConversation,
+    loadMessages,
+    settings
+  } = useChat();
 
   const [inputPrefill, setInputPrefill] = useState("");
   const messagesEndRef = useRef(null);
@@ -23,15 +31,30 @@ export default function ChatWindow() {
   useEffect(() => {
     scrollToBottom();
   }, [activeMessages.length, isThinking]);
-
-  const handleSendMessage = (text) => {
-    if (!conversationId) {
-      // Start a brand new conversation and navigate
-      const newId = startNewConversation(text);
-      navigate(`/chat/${newId}`);
-    } else {
-      sendMessage(conversationId, text);
+  useEffect(() => {
+    if (conversationId) {
+      loadMessages(conversationId);
     }
+  }, [conversationId]);
+
+  const handleSendMessage = async (text, attachment) => {
+    if (!conversationId) {
+      const newId = await startNewConversation(
+        text,
+        attachment
+      );
+
+      if (newId) {
+        navigate(`/chat/${newId}`);
+      }
+    } else {
+      await sendMessage(
+        conversationId,
+        text,
+        attachment
+      );
+    }
+
     setInputPrefill("");
   };
 

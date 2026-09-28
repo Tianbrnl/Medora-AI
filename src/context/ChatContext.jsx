@@ -1,19 +1,124 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { initialConversations, mockUser } from "../data/mockConversations";
-import { initialMessages, generateMockAiResponse } from "../data/mockMessages";
 import { getInitials } from "../utils/userUtils";
 import { supabase } from "../lib/supabase";
+
 const ChatContext = createContext();
 
 export function ChatProvider({ children }) {
-  const [conversations, setConversations] = useState(() => {
+  // =========================
+  // STATE
+  // =========================
+
+  const [conversations, setConversations] = useState([]);
+  const [messages, setMessages] = useState({});
+  const [isThinking, setIsThinking] = useState(false);
+
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  const [user, setUser] = useState({
+    name: "Doctor",
+    email: "",
+    initials: "D",
+    avatarUrl: null,
+  });
+
+  const [settings, setSettings] = useState(() => {
     try {
-      const saved = localStorage.getItem("doctorai_conversations");
-      return saved ? JSON.parse(saved) : initialConversations;
+      const saved = localStorage.getItem("doctorai_settings");
+
+      return saved
+        ? JSON.parse(saved)
+        : {
+          enterToSend: true,
+          showSuggestedQuestions: true,
+        };
     } catch {
-      return initialConversations;
+      return {
+        enterToSend: true,
+        showSuggestedQuestions: true,
+      };
     }
   });
+
+  const [toastMessage, setToastMessage] = useState(null);
+
+  // =========================
+  // TOAST
+  // =========================
+
+  const showToast = (message, type = "info") => {
+    setToastMessage({
+      message,
+      type,
+      id: Date.now(),
+    });
+
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3200);
+  };
+
+  // =========================
+  // LOAD CONVERSATIONS
+  // =========================
+
+  const loadConversations = async (userId) => {
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from("conversations")
+      .select("*")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      console.error("Failed to load conversations:", error);
+      showToast("Failed to load conversations.", "error");
+      return;
+    }
+
+    setConversations(data || []);
+  };
+
+  // =========================
+  // LOAD MESSAGES
+  // =========================
+
+  const loadMessages = async (conversationId) => {
+    if (!conversationId) return [];
+
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Failed to load messages:", error);
+      showToast("Failed to load messages.", "error");
+      return [];
+    }
+
+    const formattedMessages = (data || []).map((message) => ({
+      id: message.id,
+      sender: message.role,
+      text: message.content,
+      timestamp: message.created_at,
+    }));
+
+    setMessages((prev) => ({
+      ...prev,
+      [conversationId]: formattedMessages,
+    }));
+
+    return formattedMessages;
+  };
+
+  // =========================
+  // AUTH SESSION
+  // =========================
+
   useEffect(() => {
     let mounted = true;
 
@@ -32,13 +137,14 @@ export function ChatProvider({ children }) {
           session.user.email?.split("@")[0] ||
           "Doctor";
 
-        setUser((prev) => ({
-          ...prev,
+        setUser({
           name: fullName,
-          email: session.user.email,
+          email: session.user.email || "",
           initials: getInitials(fullName),
           avatarUrl: null,
-        }));
+        });
+
+        await loadConversations(session.user.id);
       }
 
       setAuthLoading(false);
@@ -57,14 +163,31 @@ export function ChatProvider({ children }) {
           session.user.email?.split("@")[0] ||
           "Doctor";
 
-        setUser((prev) => ({
-          ...prev,
+        setUser({
           name: fullName,
-          email: session.user.email,
+          email: session.user.email || "",
           initials: getInitials(fullName),
           avatarUrl: null,
-        }));
+        });
+
+        // Delay database loading slightly so it doesn't run
+        // directly inside the auth state callback.
+        setTimeout(() => {
+          loadConversations(session.user.id);
+        }, 0);
+      } else {
+        setUser({
+          name: "Doctor",
+          email: "",
+          initials: "D",
+          avatarUrl: null,
+        });
+
+        setConversations([]);
+        setMessages({});
       }
+
+      setAuthLoading(false);
     });
 
     return () => {
@@ -72,272 +195,750 @@ export function ChatProvider({ children }) {
       subscription.unsubscribe();
     };
   }, []);
-  const [messages, setMessages] = useState(() => {
-    try {
-      const saved = localStorage.getItem("doctorai_messages");
-      return saved ? JSON.parse(saved) : initialMessages;
-    } catch {
-      return initialMessages;
-    }
-  });
 
-  const [isThinking, setIsThinking] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [user, setUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem("doctorai_user");
-      const parsed = saved ? JSON.parse(saved) : {};
-      const merged = { ...mockUser, ...parsed };
-      merged.initials = getInitials(merged.name || "John Doe");
-      merged.avatarUrl = null;
-      return merged;
-    } catch {
-      return mockUser;
-    }
-  });
-  const [settings, setSettings] = useState(() => {
-    try {
-      const saved = localStorage.getItem("doctorai_settings");
-      return saved ? JSON.parse(saved) : { enterToSend: true, showSuggestedQuestions: true };
-    } catch {
-      return { enterToSend: true, showSuggestedQuestions: true };
-    }
-  });
-
-  const [toastMessage, setToastMessage] = useState(null);
-
-
-
-  const logout = async () => {
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      showToast(error.message || "Failed to sign out", "error");
-      return;
-    }
-
-    setIsAuthenticated(false);
-    showToast("Signed out of Medora", "info");
-  };
-
-  // Sync to local storage
-  useEffect(() => {
-    localStorage.setItem("doctorai_user", JSON.stringify(user));
-  }, [user]);
+  // =========================
+  // LOCAL SETTINGS
+  // =========================
 
   useEffect(() => {
-    localStorage.setItem("doctorai_conversations", JSON.stringify(conversations));
-  }, [conversations]);
-
-  useEffect(() => {
-    localStorage.setItem("doctorai_messages", JSON.stringify(messages));
-  }, [messages]);
-
-  useEffect(() => {
-    localStorage.setItem("doctorai_settings", JSON.stringify(settings));
+    localStorage.setItem(
+      "doctorai_settings",
+      JSON.stringify(settings)
+    );
   }, [settings]);
 
-  const showToast = (message, type = "info") => {
-    setToastMessage({ message, type, id: Date.now() });
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3200);
-  };
+  // =========================
+  // UPDATE SETTINGS
+  // =========================
 
   const updateSettings = (partial) => {
-    setSettings(prev => ({ ...prev, ...partial }));
+    setSettings((prev) => ({
+      ...prev,
+      ...partial,
+    }));
+
     showToast("Settings updated successfully", "success");
   };
 
+  // =========================
+  // UPDATE USER
+  // =========================
+
   const updateUser = (partial) => {
-    setUser(prev => {
-      const nextName = partial.name !== undefined ? partial.name : prev.name;
-      const nextInitials = partial.initials || getInitials(nextName);
+    setUser((prev) => {
+      const nextName =
+        partial.name !== undefined
+          ? partial.name
+          : prev.name;
+
       return {
         ...prev,
         ...partial,
-        initials: nextInitials,
-        avatarUrl: null
+        initials: getInitials(nextName),
+        avatarUrl: null,
       };
     });
+
     showToast("Profile updated successfully", "success");
   };
 
-  const startNewConversation = (promptText) => {
-    const newId = `conv-${Date.now()}`;
-    const title = promptText.length > 32 ? promptText.slice(0, 32) + "..." : promptText;
-    const timeStr = "Just now";
+  // =========================
+  // START NEW CONVERSATION
+  // =========================
 
-    const newConv = {
-      id: newId,
-      title: title,
-      group: "Today",
-      timestamp: timeStr,
-      updatedAt: new Date().toISOString()
-    };
+  const startNewConversation = async (
+    promptText,
+    attachment = null
+  ) => {
+    const trimmedText = promptText.trim();
 
-    const userMsg = {
-      id: `m-${Date.now()}-1`,
-      sender: "user",
-      text: promptText,
-      timestamp: timeStr
-    };
+    if (!trimmedText && !attachment?.imageData) {
+      return null;
+    }
 
-    setConversations(prev => [newConv, ...prev]);
-    setMessages(prev => ({
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+
+    if (!currentUser) {
+      showToast(
+        "Please sign in to start a conversation.",
+        "error"
+      );
+
+      return null;
+    }
+
+    const titleSource =
+      trimmedText ||
+      attachment?.fileName ||
+      "Medical image";
+
+    const title =
+      titleSource.length > 32
+        ? titleSource.slice(0, 32) + "..."
+        : titleSource;
+
+    // =========================
+    // CREATE CONVERSATION
+    // =========================
+
+    const {
+      data: conversation,
+      error: conversationError,
+    } = await supabase
+      .from("conversations")
+      .insert({
+        user_id: currentUser.id,
+        title,
+      })
+      .select()
+      .single();
+
+    if (conversationError) {
+      console.error(
+        "Failed to create conversation:",
+        conversationError
+      );
+
+      showToast(
+        "Failed to create conversation.",
+        "error"
+      );
+
+      return null;
+    }
+
+    // =========================
+    // SAVE USER MESSAGE
+    // =========================
+
+    let displayText = trimmedText;
+
+    if (attachment?.fileName) {
+      displayText = trimmedText
+        ? `${trimmedText}\n\n📎 ${attachment.fileName}`
+        : `📎 ${attachment.fileName}`;
+    }
+
+    const {
+      data: userMessage,
+      error: messageError,
+    } = await supabase
+      .from("messages")
+      .insert({
+        conversation_id: conversation.id,
+        role: "user",
+        content: displayText,
+      })
+      .select()
+      .single();
+
+    if (messageError) {
+      console.error(
+        "Failed to save message:",
+        messageError
+      );
+
+      showToast(
+        "Failed to save message.",
+        "error"
+      );
+
+      return null;
+    }
+
+    // =========================
+    // UPDATE LOCAL UI
+    // =========================
+
+    setConversations((prev) => [
+      conversation,
+      ...prev.filter(
+        (item) => item.id !== conversation.id
+      ),
+    ]);
+
+    setMessages((prev) => ({
       ...prev,
-      [newId]: [userMsg]
+      [conversation.id]: [
+        {
+          id: userMessage.id,
+          sender: "user",
+          text: userMessage.content,
+          timestamp: userMessage.created_at,
+        },
+      ],
     }));
 
-    setIsThinking(true);
-
-    setTimeout(() => {
-      const aiReply = {
-        id: `m-${Date.now()}-2`,
-        sender: "assistant",
-        text: generateMockAiResponse(promptText),
-        timestamp: "Just now"
-      };
-
-      setMessages(prev => ({
-        ...prev,
-        [newId]: [...(prev[newId] || [userMsg]), aiReply]
-      }));
-      setIsThinking(false);
-    }, 1100);
-
-    return newId;
-  };
-
-  const sendMessage = (conversationId, text) => {
-    if (!text.trim() || isThinking) return;
-
-    const userMsg = {
-      id: `m-${Date.now()}-1`,
-      sender: "user",
-      text: text.trim(),
-      timestamp: "Just now"
-    };
-
-    setMessages(prev => ({
-      ...prev,
-      [conversationId]: [...(prev[conversationId] || []), userMsg]
-    }));
+    // =========================
+    // ASK GEMINI
+    // =========================
 
     setIsThinking(true);
 
-    setTimeout(() => {
-      const aiReply = {
-        id: `m-${Date.now()}-2`,
-        sender: "assistant",
-        text: generateMockAiResponse(text),
-        timestamp: "Just now"
-      };
-
-      setMessages(prev => ({
-        ...prev,
-        [conversationId]: [...(prev[conversationId] || []), aiReply]
-      }));
-      setIsThinking(false);
-    }, 1100);
-  };
-
-  const regenerateMessage = (conversationId, messageId) => {
-    const convMsgs = messages[conversationId] || [];
-    const targetIdx = convMsgs.findIndex(m => m.id === messageId);
-    if (targetIdx === -1) return;
-
-    // Find prior user prompt
-    const prevUserMsg = convMsgs.slice(0, targetIdx).reverse().find(m => m.sender === "user");
-    const promptText = prevUserMsg ? prevUserMsg.text : "medical guidance";
-
-    setIsThinking(true);
-    showToast("Regenerating medical response...", "info");
-
-    setTimeout(() => {
-      const newResponseText = generateMockAiResponse(promptText + " more comprehensive details");
-      setMessages(prev => {
-        const updated = [...(prev[conversationId] || [])];
-        if (updated[targetIdx]) {
-          updated[targetIdx] = {
-            ...updated[targetIdx],
-            text: newResponseText,
-            timestamp: "Just now (Regenerated)"
-          };
+    try {
+      const response = await fetch(
+        "http://localhost:3001/api/chat",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: trimmedText,
+            image: attachment?.imageData || null,
+            imageMimeType:
+              attachment?.fileType || null,
+          }),
         }
-        return {
-          ...prev,
-          [conversationId]: updated
-        };
-      });
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Failed to get response from MedoraAI."
+        );
+      }
+
+      // =========================
+      // SAVE AI RESPONSE
+      // =========================
+
+      const {
+        data: aiMessage,
+        error: aiMessageError,
+      } = await supabase
+        .from("messages")
+        .insert({
+          conversation_id: conversation.id,
+          role: "assistant",
+          content: data.response,
+        })
+        .select()
+        .single();
+
+      if (aiMessageError) {
+        console.error(
+          "Failed to save AI message:",
+          aiMessageError
+        );
+
+        showToast(
+          "AI responded, but the response could not be saved.",
+          "error"
+        );
+
+        return conversation.id;
+      }
+
+      // =========================
+      // SHOW AI RESPONSE
+      // =========================
+
+      setMessages((prev) => ({
+        ...prev,
+        [conversation.id]: [
+          ...(prev[conversation.id] || []),
+          {
+            id: aiMessage.id,
+            sender: "assistant",
+            text: aiMessage.content,
+            timestamp: aiMessage.created_at,
+          },
+        ],
+      }));
+
+      // =========================
+      // UPDATE CONVERSATION TIME
+      // =========================
+
+      await supabase
+        .from("conversations")
+        .update({
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conversation.id);
+
+    } catch (error) {
+      console.error(
+        "Failed to get Gemini response:",
+        error
+      );
+
+      showToast(
+        error.message ||
+          "Failed to get a response from MedoraAI.",
+        "error"
+      );
+    } finally {
       setIsThinking(false);
-      showToast("Response regenerated", "success");
-    }, 1000);
+    }
+
+    return conversation.id;
   };
 
-  const renameConversation = (conversationId, newTitle) => {
-    if (!newTitle.trim()) return;
-    setConversations(prev =>
-      prev.map(c => c.id === conversationId ? { ...c, title: newTitle.trim() } : c)
+  // =========================
+  // SEND MESSAGE
+  // =========================
+
+  const sendMessage = async (
+    conversationId,
+    text,
+    attachment = null
+  ) => {
+    if ((!text.trim() && !attachment?.imageData) || isThinking) {
+      return;
+    }
+
+    const trimmedText = text.trim();
+
+    setIsThinking(true);
+
+    try {
+      // =========================
+      // SAVE USER MESSAGE
+      // =========================
+
+      let displayText = trimmedText;
+
+      if (attachment?.fileName) {
+        displayText = trimmedText
+          ? `${trimmedText}\n\n📎 ${attachment.fileName}`
+          : `📎 ${attachment.fileName}`;
+      }
+
+      const {
+        data: userMessage,
+        error: userMessageError,
+      } = await supabase
+        .from("messages")
+        .insert({
+          conversation_id: conversationId,
+          role: "user",
+          content: displayText,
+        })
+        .select()
+        .single();
+
+      if (userMessageError) {
+        console.error(
+          "Failed to save user message:",
+          userMessageError
+        );
+
+        showToast(
+          "Failed to send message.",
+          "error"
+        );
+
+        return;
+      }
+
+      // =========================
+      // SHOW USER MESSAGE
+      // =========================
+
+      setMessages((prev) => ({
+        ...prev,
+        [conversationId]: [
+          ...(prev[conversationId] || []),
+          {
+            id: userMessage.id,
+            sender: "user",
+            text: userMessage.content,
+            timestamp: userMessage.created_at,
+          },
+        ],
+      }));
+
+      // =========================
+      // UPDATE CONVERSATION TIME
+      // =========================
+
+      const { error: updateError } = await supabase
+        .from("conversations")
+        .update({
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conversationId);
+
+      if (updateError) {
+        console.error(
+          "Failed to update conversation timestamp:",
+          updateError
+        );
+      }
+
+      // =========================
+      // SEND MESSAGE + IMAGE TO GEMINI
+      // =========================
+
+      const response = await fetch(
+        "http://localhost:3001/api/chat",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: trimmedText,
+            image: attachment?.imageData || null,
+            imageMimeType: attachment?.fileType || null,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+          "Failed to get response from MedoraAI."
+        );
+      }
+
+      // =========================
+      // SAVE AI RESPONSE
+      // =========================
+
+      const {
+        data: aiMessage,
+        error: aiMessageError,
+      } = await supabase
+        .from("messages")
+        .insert({
+          conversation_id: conversationId,
+          role: "assistant",
+          content: data.response,
+        })
+        .select()
+        .single();
+
+      if (aiMessageError) {
+        console.error(
+          "Failed to save AI message:",
+          aiMessageError
+        );
+
+        showToast(
+          "AI responded, but the response could not be saved.",
+          "error"
+        );
+
+        return;
+      }
+
+      // =========================
+      // SHOW AI RESPONSE
+      // =========================
+
+      setMessages((prev) => ({
+        ...prev,
+        [conversationId]: [
+          ...(prev[conversationId] || []),
+          {
+            id: aiMessage.id,
+            sender: "assistant",
+            text: aiMessage.content,
+            timestamp: aiMessage.created_at,
+          },
+        ],
+      }));
+
+      // =========================
+      // UPDATE CONVERSATION TIME
+      // =========================
+
+      const { error: finalUpdateError } = await supabase
+        .from("conversations")
+        .update({
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conversationId);
+
+      if (finalUpdateError) {
+        console.error(
+          "Failed to update conversation timestamp:",
+          finalUpdateError
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Failed to send message:",
+        error
+      );
+
+      showToast(
+        error.message ||
+        "Failed to get a response from MedoraAI.",
+        "error"
+      );
+    } finally {
+      setIsThinking(false);
+    }
+  };
+
+  // =========================
+  // REGENERATE MESSAGE
+  // =========================
+
+  const regenerateMessage = async (
+    conversationId,
+    messageId
+  ) => {
+    // Gemini will handle this later.
+    console.log(
+      "Regenerate requested:",
+      conversationId,
+      messageId
     );
-    showToast("Conversation renamed", "success");
+
+    showToast(
+      "AI regeneration will be connected with Gemini.",
+      "info"
+    );
   };
 
-  const deleteConversation = (conversationId) => {
-    setConversations(prev => prev.filter(c => c.id !== conversationId));
-    setMessages(prev => {
+  // =========================
+  // RENAME CONVERSATION
+  // =========================
+
+  const renameConversation = async (
+    conversationId,
+    newTitle
+  ) => {
+    const trimmedTitle = newTitle.trim();
+
+    if (!trimmedTitle) return;
+
+    const { error } = await supabase
+      .from("conversations")
+      .update({
+        title: trimmedTitle,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", conversationId);
+
+    if (error) {
+      console.error(
+        "Failed to rename conversation:",
+        error
+      );
+
+      showToast(
+        "Failed to rename conversation.",
+        "error"
+      );
+
+      return;
+    }
+
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === conversationId
+          ? {
+            ...conversation,
+            title: trimmedTitle,
+          }
+          : conversation
+      )
+    );
+
+    showToast(
+      "Conversation renamed",
+      "success"
+    );
+  };
+
+  // =========================
+  // DELETE CONVERSATION
+  // =========================
+
+  const deleteConversation = async (
+    conversationId
+  ) => {
+    const { error } = await supabase
+      .from("conversations")
+      .delete()
+      .eq("id", conversationId);
+
+    if (error) {
+      console.error(
+        "Failed to delete conversation:",
+        error
+      );
+
+      showToast(
+        "Failed to delete conversation.",
+        "error"
+      );
+
+      return;
+    }
+
+    setConversations((prev) =>
+      prev.filter(
+        (conversation) =>
+          conversation.id !== conversationId
+      )
+    );
+
+    setMessages((prev) => {
       const copy = { ...prev };
       delete copy[conversationId];
       return copy;
     });
-    showToast("Conversation deleted", "info");
+
+    showToast(
+      "Conversation deleted",
+      "info"
+    );
   };
 
-  const clearAllConversations = () => {
+  // =========================
+  // CLEAR ALL CONVERSATIONS
+  // =========================
+
+  const clearAllConversations = async () => {
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+
+    if (!currentUser) return;
+
+    const { error } = await supabase
+      .from("conversations")
+      .delete()
+      .eq("user_id", currentUser.id);
+
+    if (error) {
+      console.error(
+        "Failed to clear conversations:",
+        error
+      );
+
+      showToast(
+        "Failed to clear conversation history.",
+        "error"
+      );
+
+      return;
+    }
+
     setConversations([]);
     setMessages({});
-    showToast("Conversation history cleared", "info");
+
+    showToast(
+      "Conversation history cleared",
+      "info"
+    );
   };
 
-  const toggleFeedback = (conversationId, messageId, type) => {
-    setMessages(prev => {
-      const convMsgs = prev[conversationId] || [];
-      const updated = convMsgs.map(m => {
-        if (m.id === messageId) {
+  // =========================
+  // FEEDBACK
+  // =========================
+
+  const toggleFeedback = (
+    conversationId,
+    messageId,
+    type
+  ) => {
+    setMessages((prev) => {
+      const convMsgs =
+        prev[conversationId] || [];
+
+      const updated = convMsgs.map((message) => {
+        if (message.id === messageId) {
           return {
-            ...m,
-            feedback: m.feedback === type ? null : type
+            ...message,
+            feedback:
+              message.feedback === type
+                ? null
+                : type,
           };
         }
-        return m;
+
+        return message;
       });
-      return { ...prev, [conversationId]: updated };
+
+      return {
+        ...prev,
+        [conversationId]: updated,
+      };
     });
-    showToast(type === "up" ? "Feedback recorded: Helpful" : "Feedback recorded: Needs improvement", "info");
+
+    showToast(
+      type === "up"
+        ? "Feedback recorded: Helpful"
+        : "Feedback recorded: Needs improvement",
+      "info"
+    );
   };
+
+  // =========================
+  // LOGOUT
+  // =========================
+
+  const logout = async () => {
+    const { error } =
+      await supabase.auth.signOut();
+
+    if (error) {
+      showToast(
+        error.message ||
+        "Failed to sign out",
+        "error"
+      );
+
+      return;
+    }
+
+    setIsAuthenticated(false);
+    setConversations([]);
+    setMessages({});
+
+    showToast(
+      "Signed out of Medora",
+      "info"
+    );
+  };
+
+  // =========================
+  // PROVIDER
+  // =========================
 
   return (
     <ChatContext.Provider
       value={{
         conversations,
         messages,
+
         isThinking,
+        isAuthenticated,
+        authLoading,
+
         user,
         settings,
         toastMessage,
+
         showToast,
         updateSettings,
         updateUser,
+
         startNewConversation,
         sendMessage,
+        loadMessages,
+
         regenerateMessage,
         renameConversation,
         deleteConversation,
         clearAllConversations,
         toggleFeedback,
-        isAuthenticated,
-        logout
+
+        logout,
       }}
     >
       {children}
@@ -347,8 +948,12 @@ export function ChatProvider({ children }) {
 
 export function useChat() {
   const context = useContext(ChatContext);
+
   if (!context) {
-    throw new Error("useChat must be used within a ChatProvider");
+    throw new Error(
+      "useChat must be used within a ChatProvider"
+    );
   }
+
   return context;
 }
