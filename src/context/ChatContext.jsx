@@ -443,6 +443,7 @@ export function ChatProvider({ children }) {
         conversation_id: conversation.id,
         role: "user",
         content: displayText,
+        created_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -530,6 +531,7 @@ export function ChatProvider({ children }) {
           conversation_id: conversation.id,
           role: "assistant",
           content: data.response,
+          created_at: new Date().toISOString(),
         })
         .select()
         .single();
@@ -633,6 +635,7 @@ export function ChatProvider({ children }) {
           conversation_id: conversationId,
           role: "user",
           content: displayText,
+          created_at: new Date().toISOString(),
         })
         .select()
         .single();
@@ -728,6 +731,7 @@ export function ChatProvider({ children }) {
           conversation_id: conversationId,
           role: "assistant",
           content: data.response,
+          created_at: new Date().toISOString(),
         })
         .select()
         .single();
@@ -804,17 +808,109 @@ export function ChatProvider({ children }) {
     conversationId,
     messageId
   ) => {
-    // Gemini will handle this later.
-    console.log(
-      "Regenerate requested:",
-      conversationId,
-      messageId
-    );
+    if (!conversationId || !messageId) return;
 
-    showToast(
-      "AI regeneration will be connected with Gemini.",
-      "info"
-    );
+    const convMessages = messages[conversationId] || [];
+    const targetIndex = convMessages.findIndex((m) => m.id === messageId);
+
+    if (targetIndex === -1) {
+      showToast("Message not found to regenerate.", "error");
+      return;
+    }
+
+    // Find the preceding user message to use as prompt
+    let userPromptMessage = null;
+    for (let i = targetIndex - 1; i >= 0; i--) {
+      if (convMessages[i].sender === "user") {
+        userPromptMessage = convMessages[i];
+        break;
+      }
+    }
+
+    if (!userPromptMessage || !userPromptMessage.text?.trim()) {
+      showToast("Cannot find the original prompt to regenerate.", "error");
+      return;
+    }
+
+    setIsThinking(true);
+
+    try {
+      const response = await fetch("http://localhost:3001/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: userPromptMessage.text,
+          medications: medications,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error || "Failed to get response from MedoraAI."
+        );
+      }
+
+      const nowIso = new Date().toISOString();
+
+      // Update message in Supabase
+      const { error: updateError } = await supabase
+        .from("messages")
+        .update({
+          content: data.response,
+          created_at: nowIso,
+        })
+        .eq("id", messageId);
+
+      if (updateError) {
+        console.error("Failed to update message in Supabase:", updateError);
+      }
+
+      // Update conversation timestamp
+      await supabase
+        .from("conversations")
+        .update({
+          updated_at: nowIso,
+        })
+        .eq("id", conversationId);
+
+      // Update local messages state
+      setMessages((prev) => ({
+        ...prev,
+        [conversationId]: (prev[conversationId] || []).map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                text: data.response,
+                timestamp: nowIso,
+                feedback: null,
+              }
+            : msg
+        ),
+      }));
+
+      // Update conversation list
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === conversationId
+            ? { ...conv, updated_at: nowIso }
+            : conv
+        )
+      );
+
+      showToast("Response regenerated successfully", "success");
+    } catch (error) {
+      console.error("Failed to regenerate message:", error);
+      showToast(
+        error.message || "Failed to regenerate response.",
+        "error"
+      );
+    } finally {
+      setIsThinking(false);
+    }
   };
 
   // =========================
