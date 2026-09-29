@@ -138,7 +138,7 @@ export default function Settings() {
             <div className="flex items-center justify-between py-1">
               <span className="font-medium text-slate-700 dark:text-slate-300">Software Version</span>
               <span className="font-mono text-xs px-2 py-0.5 bg-slate-100 dark:bg-[#1a1a1a] rounded-md text-slate-800 dark:text-slate-200">
-                MedoraAI v1.0.0 (Frontend Demo)
+                MedoraAI v1.0.0
               </span>
             </div>
 
