@@ -51,7 +51,7 @@ export default function Register() {
         return;
       }
 
-      navigate("/chat");
+      navigate("/chat", { state: { showUsernameModal: true, isNewAccount: true } });
     } catch (error) {
       alert(error.message || "Failed to create account.");
     } finally {
@@ -140,7 +140,7 @@ export default function Register() {
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="John Doe"
+                    placeholder="e.g. Alex Morgan"
                     className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
                   />
                 </div>

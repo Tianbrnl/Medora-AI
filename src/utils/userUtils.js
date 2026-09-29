@@ -1,20 +1,12 @@
 /**
  * Derives user initials from a display name.
  * - Single word (e.g. "enryu") -> first 2 characters ("EN")
- * - "John Doe" / "john doe" / "john" -> "JN"
  * - Multi-word (e.g. "Jane Smith") -> first letters ("JS")
  */
 export function getInitials(name) {
-  if (!name || typeof name !== "string") return "JN";
+  if (!name || typeof name !== "string") return "MD";
   const trimmed = name.trim();
-  if (!trimmed) return "JN";
-
-  const lower = trimmed.toLowerCase();
-
-  // Explicit case for John Doe / John
-  if (lower === "john doe" || lower === "john" || lower === "johndoe" || lower.startsWith("john doe")) {
-    return "JN";
-  }
+  if (!trimmed) return "MD";
 
   const parts = trimmed.split(/\s+/).filter(Boolean);
 
