@@ -21,8 +21,37 @@ const model = genAI.getGenerativeModel({
 export async function askGemini(
     message,
     image = null,
-    imageMimeType = null
+    imageMimeType = null,
+    medications = []
 ) {
+    const medicationContext =
+        Array.isArray(medications) && medications.length > 0
+            ? `
+CLINICIAN'S REGISTERED MEDICATION REFERENCE LIBRARY:
+The clinician has registered the following medications in their Medora library:
+${medications
+    .map(
+        (m, idx) =>
+            `${idx + 1}. ${m.name || m.medicine_name || "Unknown"}${
+                m.genericName || m.generic_name
+                    ? ` (Generic: ${m.genericName || m.generic_name})`
+                    : ""
+            } | Category: ${
+                m.category || m.medication_categories?.category_name || "General"
+            } | Dosage: ${m.dosage || "Not specified"} | Common Uses: ${
+                m.commonUses || m.common_uses || "Not specified"
+            }`
+    )
+    .join("\n")}
+
+MEDICATION REFERENCE INSTRUCTIONS:
+- You have direct access to the clinician's registered medications list above.
+- When the doctor asks about their medications, what drugs they have added, their formulary, dosages, or indications, reference their registered library accurately.
+- When a doctor asks for clinical suggestions or treatment options and mentions their available medications, cross-reference this library and suggest appropriate matching medications when clinically indicated.
+- If a requested medication is not in this list, give the standard clinical information and clarify that it is not present in their registered medications library.
+`
+            : "";
+
     const prompt = `
 You are Medora, a quick clinical reference assistant for doctors and other healthcare professionals.
 
@@ -137,7 +166,7 @@ Local practice:
 TONE
 Professional, direct, concise, and easy to scan.
 Do not sound like a medical textbook.
-
+${medicationContext}
 USER QUESTION:
 ${message || "Please analyze the attached medical image."}
 `;

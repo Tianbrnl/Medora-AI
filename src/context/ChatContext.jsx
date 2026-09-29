@@ -16,7 +16,10 @@ export function ChatProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
+  const [medications, setMedications] = useState([]);
+
   const [user, setUser] = useState({
+    id: null,
     name: "Doctor",
     username: "",
     email: "",
@@ -117,6 +120,61 @@ export function ChatProvider({ children }) {
   };
 
   // =========================
+  // LOAD MEDICATIONS
+  // =========================
+
+  const loadMedications = async (userId) => {
+    try {
+      let query = supabase
+        .from("medications")
+        .select(`
+          id,
+          medicine_name,
+          generic_name,
+          common_uses,
+          dosage,
+          category_id,
+          user_id,
+          created_at,
+          updated_at,
+          medication_categories (
+            id,
+            category_name
+          )
+        `)
+        .order("medicine_name");
+
+      if (userId) {
+        query = query.or(`user_id.eq.${userId},user_id.is.null`);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error("Failed to load medications in ChatContext:", error);
+        return [];
+      }
+
+      const formatted = (data || []).map((m) => ({
+        id: m.id,
+        name: m.medicine_name,
+        genericName: m.generic_name || "",
+        commonUses: m.common_uses || "",
+        dosage: m.dosage || "",
+        category: m.medication_categories?.category_name || "Other",
+        categoryId: m.category_id,
+        createdAt: m.created_at,
+        updatedAt: m.updated_at,
+      }));
+
+      setMedications(formatted);
+      return formatted;
+    } catch (err) {
+      console.error("Error loading medications in ChatContext:", err);
+      return [];
+    }
+  };
+
+  // =========================
   // AUTH SESSION
   // =========================
 
@@ -145,6 +203,7 @@ export function ChatProvider({ children }) {
           "";
 
         setUser({
+          id: session.user.id,
           name: fullName,
           username: username,
           email: session.user.email || "",
@@ -152,7 +211,10 @@ export function ChatProvider({ children }) {
           avatarUrl: null,
         });
 
-        await loadConversations(session.user.id);
+        await Promise.all([
+          loadConversations(session.user.id),
+          loadMedications(session.user.id),
+        ]);
       }
 
       setAuthLoading(false);
@@ -178,6 +240,7 @@ export function ChatProvider({ children }) {
           "";
 
         setUser({
+          id: session.user.id,
           name: fullName,
           username: username,
           email: session.user.email || "",
@@ -189,9 +252,11 @@ export function ChatProvider({ children }) {
         // directly inside the auth state callback.
         setTimeout(() => {
           loadConversations(session.user.id);
+          loadMedications(session.user.id);
         }, 0);
       } else {
         setUser({
+          id: null,
           name: "Doctor",
           username: "",
           email: "",
@@ -201,6 +266,7 @@ export function ChatProvider({ children }) {
 
         setConversations([]);
         setMessages({});
+        setMedications([]);
       }
 
       setAuthLoading(false);
@@ -437,6 +503,7 @@ export function ChatProvider({ children }) {
             image: attachment?.imageData || null,
             imageMimeType:
               attachment?.fileType || null,
+            medications: medications,
           }),
         }
       );
@@ -634,6 +701,7 @@ export function ChatProvider({ children }) {
             message: trimmedText,
             image: attachment?.imageData || null,
             imageMimeType: attachment?.fileType || null,
+            medications: medications,
           }),
         }
       );
@@ -984,6 +1052,10 @@ export function ChatProvider({ children }) {
         deleteConversation,
         clearAllConversations,
         toggleFeedback,
+
+        medications,
+        setMedications,
+        loadMedications,
 
         logout,
       }}
