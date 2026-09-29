@@ -62,9 +62,6 @@ export default function ProfileModal({ isOpen, onClose }) {
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">
               <span>@{username.replace(/^@/, "") || user.username || "johndoe"}</span>
             </p>
-            <span className="inline-block mt-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60">
-              {user.role || "Free Account"}
-            </span>
           </div>
         </div>
 
