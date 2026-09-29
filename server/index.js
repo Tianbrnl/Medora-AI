@@ -20,6 +20,7 @@ app.post("/api/chat", async (req, res) => {
             message,
             image,
             imageMimeType,
+            medications,
         } = req.body;
 
         if (!message?.trim() && !image) {
@@ -31,7 +32,8 @@ app.post("/api/chat", async (req, res) => {
         const response = await askGemini(
             message || "",
             image,
-            imageMimeType
+            imageMimeType,
+            medications || []
         );
 
         res.json({

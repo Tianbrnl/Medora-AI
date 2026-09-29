@@ -15,7 +15,7 @@ import { useChat } from "../context/ChatContext";
 import { supabase } from "../lib/supabase";
 
 export default function Medications() {
-  const { showToast } = useChat();
+  const { showToast, user, loadMedications } = useChat();
 
   const [medications, setMedications] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -44,83 +44,84 @@ export default function Medications() {
     setLoading(true);
 
     try {
+      let categoryQuery = supabase
+        .from("medication_categories")
+        .select("id, category_name")
+        .order("category_name");
+
+      let medicationQuery = supabase
+        .from("medications")
+        .select(`
+          id,
+          medicine_name,
+          generic_name,
+          common_uses,
+          dosage,
+          category_id,
+          user_id,
+          created_at,
+          updated_at,
+          medication_categories (
+            id,
+            category_name
+          )
+        `)
+        .order("medicine_name");
+
+      if (user?.id) {
+        categoryQuery = categoryQuery.or(`user_id.eq.${user.id},user_id.is.null`);
+        medicationQuery = medicationQuery.or(`user_id.eq.${user.id},user_id.is.null`);
+      }
+
       const [
         { data: categoryData, error: categoryError },
         { data: medicationData, error: medicationError },
-      ] = await Promise.all([
-        supabase
-          .from("medication_categories")
-          .select("id, category_name")
-          .order("category_name"),
-
-        supabase
-          .from("medications")
-          .select(`
-            id,
-            medicine_name,
-            generic_name,
-            common_uses,
-            dosage,
-            category_id,
-            created_at,
-            updated_at,
-            medication_categories (
-              id,
-              category_name
-            )
-          `)
-          .order("medicine_name"),
-      ]);
+      ] = await Promise.all([categoryQuery, medicationQuery]);
 
       if (categoryError) {
-        throw categoryError;
+        console.error("Failed to load categories:", categoryError);
       }
 
       if (medicationError) {
         throw medicationError;
       }
 
-      // Keep categories as names because your existing
-      // MedicationFilters and MedicationForm use strings.
-      setCategories(
-        (categoryData || []).map(
-          (category) => category.category_name
+      // Unique category names
+      const categoryNames = Array.from(
+        new Set(
+          (categoryData || [])
+            .map((category) => category.category_name)
+            .filter(Boolean)
         )
       );
 
-      // Convert Supabase structure into the structure
-      // your existing components already expect.
+      if (!categoryNames.includes("Other")) {
+        categoryNames.push("Other");
+      }
+
+      setCategories(categoryNames);
+
       const formattedMedications = (medicationData || []).map(
         (medication) => ({
           id: medication.id,
-
           name: medication.medicine_name,
-
           genericName: medication.generic_name || "",
-
           commonUses: medication.common_uses || "",
-
           dosage: medication.dosage || "",
-
           category:
-            medication.medication_categories
-              ?.category_name || "Other",
-
-          // Keep the database category ID internally.
+            medication.medication_categories?.category_name || "Other",
           categoryId: medication.category_id,
-
           createdAt: medication.created_at,
-
           updatedAt: medication.updated_at,
         })
       );
 
       setMedications(formattedMedications);
+      return formattedMedications;
     } catch (error) {
       console.error("Failed to load medication data:", error);
-
       showToast(
-        "Failed to load medications.",
+        error.message || "Failed to load medications.",
         "error"
       );
     } finally {
@@ -130,7 +131,7 @@ export default function Medications() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user?.id]);
 
   // --------------------------------------------------
   // SEARCH + CATEGORY FILTER
@@ -182,26 +183,27 @@ export default function Medications() {
 
   const handleAddSubmit = async (newMed) => {
     try {
-      // Convert category name → category UUID
-      const { data: category, error: categoryError } =
-        await supabase
-          .from("medication_categories")
-          .select("id")
-          .eq("category_name", newMed.category)
-          .single();
+      let catQuery = supabase
+        .from("medication_categories")
+        .select("id")
+        .eq("category_name", newMed.category);
 
-      if (categoryError) {
-        throw categoryError;
+      if (user?.id) {
+        catQuery = catQuery.or(`user_id.eq.${user.id},user_id.is.null`);
       }
+
+      const { data: categoryList } = await catQuery.limit(1);
+      const categoryId = categoryList?.[0]?.id || null;
 
       const { error } = await supabase
         .from("medications")
         .insert({
+          user_id: user?.id || null,
           medicine_name: newMed.name,
           generic_name: newMed.genericName || "",
           common_uses: newMed.commonUses || "",
           dosage: newMed.dosage || "",
-          category_id: category?.id || null,
+          category_id: categoryId,
         });
 
       if (error) {
@@ -211,6 +213,9 @@ export default function Medications() {
       setIsFormOpen(false);
 
       await loadData();
+      if (user?.id && loadMedications) {
+        await loadMedications(user.id);
+      }
 
       showToast(
         "Medication added successfully.",
@@ -223,7 +228,7 @@ export default function Medications() {
       );
 
       showToast(
-        "Failed to add medication.",
+        error.message || "Failed to add medication.",
         "error"
       );
     }
@@ -241,16 +246,17 @@ export default function Medications() {
 
   const handleEditSubmit = async (updatedMed) => {
     try {
-      const { data: category, error: categoryError } =
-        await supabase
-          .from("medication_categories")
-          .select("id")
-          .eq("category_name", updatedMed.category)
-          .single();
+      let catQuery = supabase
+        .from("medication_categories")
+        .select("id")
+        .eq("category_name", updatedMed.category);
 
-      if (categoryError) {
-        throw categoryError;
+      if (user?.id) {
+        catQuery = catQuery.or(`user_id.eq.${user.id},user_id.is.null`);
       }
+
+      const { data: categoryList } = await catQuery.limit(1);
+      const categoryId = categoryList?.[0]?.id || null;
 
       const { error } = await supabase
         .from("medications")
@@ -259,7 +265,7 @@ export default function Medications() {
           generic_name: updatedMed.genericName || "",
           common_uses: updatedMed.commonUses || "",
           dosage: updatedMed.dosage || "",
-          category_id: category?.id || null,
+          category_id: categoryId,
           updated_at: new Date().toISOString(),
         })
         .eq("id", updatedMed.id);
@@ -272,6 +278,9 @@ export default function Medications() {
       setEditingMedication(null);
 
       await loadData();
+      if (user?.id && loadMedications) {
+        await loadMedications(user.id);
+      }
 
       // Update details modal if it was open
       if (
@@ -292,7 +301,7 @@ export default function Medications() {
       );
 
       showToast(
-        "Failed to update medication.",
+        error.message || "Failed to update medication.",
         "error"
       );
     }
@@ -327,6 +336,9 @@ export default function Medications() {
       }
 
       await loadData();
+      if (user?.id && loadMedications) {
+        await loadMedications(user.id);
+      }
 
       showToast(
         "Medication deleted successfully.",
@@ -366,6 +378,7 @@ export default function Medications() {
       const { error } = await supabase
         .from("medication_categories")
         .insert({
+          user_id: user?.id || null,
           category_name: trimmedCategory,
         });
 
@@ -413,15 +426,20 @@ export default function Medications() {
   ) => {
     try {
       // Find the category ID first
-      const { data: category, error: findError } =
-        await supabase
-          .from("medication_categories")
-          .select("id")
-          .eq("category_name", categoryToDelete)
-          .single();
+      let catQuery = supabase
+        .from("medication_categories")
+        .select("id")
+        .eq("category_name", categoryToDelete);
 
-      if (findError) {
-        throw findError;
+      if (user?.id) {
+        catQuery = catQuery.or(`user_id.eq.${user.id},user_id.is.null`);
+      }
+
+      const { data: catList, error: findError } = await catQuery.limit(1);
+      const category = catList?.[0];
+
+      if (findError || !category) {
+        throw findError || new Error("Category not found.");
       }
 
       // Find "Other" category
@@ -430,9 +448,10 @@ export default function Medications() {
           .from("medication_categories")
           .select("id")
           .eq("category_name", "Other")
+          .limit(1)
           .single();
 
-      if (otherError) {
+      if (otherError || !otherCategory) {
         throw new Error(
           'The "Other" category is required before deleting a category.'
         );
@@ -470,6 +489,9 @@ export default function Medications() {
       }
 
       await loadData();
+      if (user?.id && loadMedications) {
+        await loadMedications(user.id);
+      }
 
       showToast(
         `Category "${categoryToDelete}" deleted.`,
