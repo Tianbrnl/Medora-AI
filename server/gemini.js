@@ -15,7 +15,7 @@ const genAI = new GoogleGenerativeAI(
 );
 
 const model = genAI.getGenerativeModel({
-    model: "gemini-3.6-flash",
+    model: "gemini-3.7-flash",
 });
 
 export async function askGemini(
@@ -30,19 +30,16 @@ export async function askGemini(
 CLINICIAN'S REGISTERED MEDICATION REFERENCE LIBRARY:
 The clinician has registered the following medications in their Medora library:
 ${medications
-    .map(
-        (m, idx) =>
-            `${idx + 1}. ${m.name || m.medicine_name || "Unknown"}${
-                m.genericName || m.generic_name
-                    ? ` (Generic: ${m.genericName || m.generic_name})`
-                    : ""
-            } | Category: ${
-                m.category || m.medication_categories?.category_name || "General"
-            } | Dosage: ${m.dosage || "Not specified"} | Common Uses: ${
-                m.commonUses || m.common_uses || "Not specified"
-            }`
-    )
-    .join("\n")}
+                .map(
+                    (m, idx) =>
+                        `${idx + 1}. ${m.name || m.medicine_name || "Unknown"}${m.genericName || m.generic_name
+                            ? ` (Generic: ${m.genericName || m.generic_name})`
+                            : ""
+                        } | Category: ${m.category || m.medication_categories?.category_name || "General"
+                        } | Dosage: ${m.dosage || "Not specified"} | Common Uses: ${m.commonUses || m.common_uses || "Not specified"
+                        }`
+                )
+                .join("\n")}
 
 MEDICATION REFERENCE INSTRUCTIONS:
 - You have direct access to the clinician's registered medications list above.

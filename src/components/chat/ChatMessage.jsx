@@ -4,10 +4,12 @@ import medoraLogo from "../../assets/medora_logo.png";
 import Avatar from "../ui/Avatar";
 import { useChat } from "../../context/ChatContext";
 import { getInitials } from "../../utils/userUtils";
+import { formatMessageTimestamp } from "../../utils/dateUtils";
 
 export default function ChatMessage({ message, conversationId }) {
-  const { user, regenerateMessage, toggleFeedback, showToast } = useChat();
+  const { user, regenerateMessage, toggleFeedback, showToast, isThinking } = useChat();
   const [copied, setCopied] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const isUser = message.sender === "user";
 
@@ -18,8 +20,14 @@ export default function ChatMessage({ message, conversationId }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleRegenerate = () => {
-    regenerateMessage(conversationId, message.id);
+  const handleRegenerate = async () => {
+    if (isThinking || isRegenerating) return;
+    setIsRegenerating(true);
+    try {
+      await regenerateMessage(conversationId, message.id);
+    } finally {
+      setIsRegenerating(false);
+    }
   };
 
   // Helper to format text with headings, bolding, lists, and warning callouts
@@ -114,8 +122,12 @@ export default function ChatMessage({ message, conversationId }) {
           <div className="flex flex-col items-end max-w-[85%] sm:max-w-xl md:max-w-2xl">
             {/* Header info */}
             <div className="flex items-center gap-2 mb-1 px-1">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">{message.timestamp}</span>
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{user.name}</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                {formatMessageTimestamp(message.timestamp)}
+              </span>
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {user.name}
+              </span>
             </div>
 
             {/* Bubble */}
@@ -153,7 +165,7 @@ export default function ChatMessage({ message, conversationId }) {
             </span>
 
             <span className="text-[11px] text-slate-500 dark:text-slate-400">
-              {message.timestamp}
+              {formatMessageTimestamp(message.timestamp)}
             </span>
           </div>
 
@@ -178,12 +190,15 @@ export default function ChatMessage({ message, conversationId }) {
             <button
               type="button"
               onClick={handleRegenerate}
+              disabled={isThinking || isRegenerating}
               aria-label="Regenerate response"
-              title="Regenerate response"
-              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#181818] transition-colors"
+              title={isRegenerating ? "Regenerating response..." : "Regenerate response"}
+              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#181818] transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              <RotateCw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Regenerate</span>
+              <RotateCw className={`w-3.5 h-3.5 ${isRegenerating ? "animate-spin text-teal-600 dark:text-teal-400" : ""}`} />
+              <span className="hidden sm:inline">
+                {isRegenerating ? "Regenerating..." : "Regenerate"}
+              </span>
             </button>
 
             <div className="h-3 w-px bg-slate-200 dark:bg-[#242424] mx-1" />
