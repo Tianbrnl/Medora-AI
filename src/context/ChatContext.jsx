@@ -18,6 +18,7 @@ export function ChatProvider({ children }) {
 
   const [user, setUser] = useState({
     name: "Doctor",
+    username: "",
     email: "",
     initials: "D",
     avatarUrl: null,
@@ -132,13 +133,20 @@ export function ChatProvider({ children }) {
       setIsAuthenticated(!!session);
 
       if (session?.user) {
+        const metadata = session.user.user_metadata || {};
         const fullName =
-          session.user.user_metadata?.full_name ||
+          metadata.full_name ||
+          metadata.name ||
           session.user.email?.split("@")[0] ||
           "Doctor";
 
+        const username =
+          metadata.username ||
+          "";
+
         setUser({
           name: fullName,
+          username: username,
           email: session.user.email || "",
           initials: getInitials(fullName),
           avatarUrl: null,
@@ -158,13 +166,20 @@ export function ChatProvider({ children }) {
       setIsAuthenticated(!!session);
 
       if (session?.user) {
+        const metadata = session.user.user_metadata || {};
         const fullName =
-          session.user.user_metadata?.full_name ||
+          metadata.full_name ||
+          metadata.name ||
           session.user.email?.split("@")[0] ||
           "Doctor";
 
+        const username =
+          metadata.username ||
+          "";
+
         setUser({
           name: fullName,
+          username: username,
           email: session.user.email || "",
           initials: getInitials(fullName),
           avatarUrl: null,
@@ -178,6 +193,7 @@ export function ChatProvider({ children }) {
       } else {
         setUser({
           name: "Doctor",
+          username: "",
           email: "",
           initials: "D",
           avatarUrl: null,
@@ -224,22 +240,53 @@ export function ChatProvider({ children }) {
   // UPDATE USER
   // =========================
 
-  const updateUser = (partial) => {
+  const updateUser = async (partial) => {
+    let nextName;
+    let nextUsername;
+
     setUser((prev) => {
-      const nextName =
+      nextName =
         partial.name !== undefined
           ? partial.name
           : prev.name;
+      nextUsername =
+        partial.username !== undefined
+          ? partial.username
+          : prev.username;
 
       return {
         ...prev,
         ...partial,
+        name: nextName,
+        username: nextUsername,
         initials: getInitials(nextName),
-        avatarUrl: null,
+        avatarUrl: partial.avatarUrl !== undefined ? partial.avatarUrl : prev.avatarUrl,
       };
     });
 
-    showToast("Profile updated successfully", "success");
+    try {
+      const metadataUpdates = {};
+      if (partial.name !== undefined) metadataUpdates.full_name = partial.name.trim();
+      if (partial.username !== undefined) metadataUpdates.username = partial.username.trim().replace(/^@/, "");
+
+      if (Object.keys(metadataUpdates).length > 0) {
+        const { error } = await supabase.auth.updateUser({
+          data: metadataUpdates,
+        });
+
+        if (error) {
+          console.error("Failed to sync profile update to Supabase:", error);
+          showToast("Profile updated locally (cloud sync failed)", "warning");
+          return false;
+        }
+      }
+
+      showToast("Profile updated successfully", "success");
+      return true;
+    } catch (err) {
+      console.error("Error updating user:", err);
+      return false;
+    }
   };
 
   // =========================

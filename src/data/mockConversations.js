@@ -51,10 +51,10 @@ export const initialConversations = [
 ];
 
 export const mockUser = {
-  name: "John Doe",
-  username: "johndoe",
-  email: "john.doe@example.com",
+  name: "Dr. Alex Morgan",
+  username: "alexmorgan",
+  email: "alex.morgan@example.com",
   avatarUrl: null,
-  initials: "JN",
+  initials: "AM",
   role: "Free Account"
 };

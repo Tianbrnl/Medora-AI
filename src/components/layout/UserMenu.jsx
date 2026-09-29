@@ -24,7 +24,7 @@ export default function UserMenu() {
               {user.name}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-              @{user.username || "johndoe"}
+              @{user.username || user.email?.split("@")[0] || "user"}
             </p>
           </div>
         </div>

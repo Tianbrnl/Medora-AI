@@ -1,16 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, useLocation, useParams } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import MobileSidebar from "./MobileSidebar";
 import Header from "./Header";
 import Toast from "../ui/Toast";
+import SetUsernameModal from "./SetUsernameModal";
 import { useChat } from "../../context/ChatContext";
 
 export default function AppLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [usernameModalOpen, setUsernameModalOpen] = useState(false);
   const location = useLocation();
   const { conversationId } = useParams();
-  const { conversations } = useChat();
+  const { conversations, user, isAuthenticated, authLoading } = useChat();
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      const isNewUserPrompt = Boolean(location.state?.showUsernameModal || location.state?.isNewAccount);
+      const hasDismissed = sessionStorage.getItem("medora_skipped_username_prompt");
+
+      if (isNewUserPrompt || (!user.username && !hasDismissed)) {
+        setUsernameModalOpen(true);
+      }
+    }
+  }, [authLoading, isAuthenticated, user?.username, location.state]);
 
   // Dynamic header title based on current route
   let pageTitle = "Medical Information Assistant";
@@ -47,6 +60,12 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Set Username Modal for new accounts */}
+      <SetUsernameModal
+        isOpen={usernameModalOpen}
+        onClose={() => setUsernameModalOpen(false)}
+      />
 
       {/* System Toast Notifications */}
       <Toast />
