@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react";
 import { Plus } from "lucide-react";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
-import { medicationCategories as defaultCategories } from "../../data/mockMedications";
 
 export default function MedicationForm({
   isOpen,
@@ -10,13 +9,13 @@ export default function MedicationForm({
   mode = "add",
   initialData = null,
   onSubmit,
-  categories = defaultCategories,
+  categories = [],
   onOpenAddCategory
 }) {
   const isEdit = mode === "edit";
 
   const categoryOptions = useMemo(() => {
-    const list = (categories || defaultCategories).filter((c) => c !== "All");
+    const list = (categories || []).filter((c) => c !== "All");
     if (initialData?.category && !list.includes(initialData.category)) {
       return [...list, initialData.category];
     }
