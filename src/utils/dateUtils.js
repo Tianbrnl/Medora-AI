@@ -4,7 +4,7 @@
  * - Yesterday: "Yesterday at 9:15 AM"
  * - Same year: "Sep 25 at 2:30 PM"
  * - Different year: "Oct 12, 2025 at 1:15 PM"
- * Preserves mock or short strings like "10:30 AM", "Yesterday", "3 days ago".
+ * Preserves pre-formatted short strings like "10:30 AM", "Yesterday", "3 days ago".
  */
 export function formatMessageTimestamp(timestamp) {
   if (!timestamp) return "";
@@ -15,7 +15,7 @@ export function formatMessageTimestamp(timestamp) {
     if (/^\d{1,2}:\d{2}\s?(AM|PM|am|pm)$/i.test(trimmed)) {
       return trimmed;
     }
-    // Relative mock strings
+    // Relative short strings
     if (/^(Yesterday|\d+\s+days?\s+ago|Just now)$/i.test(trimmed)) {
       return trimmed;
     }

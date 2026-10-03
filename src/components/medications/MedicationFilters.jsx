@@ -1,9 +1,8 @@
 import { useRef, useEffect } from "react";
 import { X } from "lucide-react";
-import { medicationCategories as defaultCategories } from "../../data/mockMedications";
 
 export default function MedicationFilters({
-  categories = defaultCategories,
+  categories = [],
   activeCategory,
   onSelectCategory,
   onOpenDeleteCategory

@@ -12,7 +12,7 @@ export default function HelpModal({ isOpen, onClose }) {
             <span>What is DoctorAI?</span>
           </h4>
           <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-            DoctorAI is an AI-powered medical information assistant designed to help patients understand medical symptoms, pharmaceutical references, and general health concepts with clear language.
+            MedoraAi is an AI-powered medical information assistant designed to help patients understand medical symptoms, pharmaceutical references, and general health concepts with clear language.
           </p>
         </div>
 
@@ -22,7 +22,7 @@ export default function HelpModal({ isOpen, onClose }) {
             <span>Why do I need an account to chat?</span>
           </h4>
           <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-            Signing in allows DoctorAI to securely maintain your consultation histories across sessions, remember your preferences, and maintain continuity in ongoing health discussions.
+            Signing in allows MedoraAi to securely maintain your consultation histories across sessions, remember your preferences, and maintain continuity in ongoing health discussions.
           </p>
         </div>
 
@@ -32,7 +32,7 @@ export default function HelpModal({ isOpen, onClose }) {
             <span>Emergency Guidance</span>
           </h4>
           <p className="text-xs leading-relaxed text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 p-3 rounded-xl border border-amber-200 dark:border-amber-900/60">
-            DoctorAI is not an emergency response service. If you are experiencing chest pain, severe shortness of breath, sudden numbness, or heavy bleeding, please call emergency services (911) immediately.
+            MedoraAi is not an emergency response service. If you are experiencing chest pain, severe shortness of breath, sudden numbness, or heavy bleeding, please call emergency services (911) immediately.
           </p>
         </div>
 
