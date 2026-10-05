@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Copy, Check, RotateCw, ThumbsUp, ThumbsDown, Clock } from "lucide-react";
 import medoraLogo from "../../assets/medora_logo.png";
 import Avatar from "../ui/Avatar";
 import { useChat } from "../../context/ChatContext";
@@ -12,6 +12,23 @@ export default function ChatMessage({ message, conversationId }) {
   const [isRegenerating, setIsRegenerating] = useState(false);
 
   const isUser = message.sender === "user";
+  const isRateLimit = message.isRateLimit || message.text?.includes("reached your AI chat limit");
+
+  if (isRateLimit) {
+    return (
+      <div className="py-2.5 px-4 sm:px-6">
+        <div className="max-w-3xl mx-auto flex items-center justify-start gap-3 p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs sm:text-sm shadow-xs">
+          <div className="shrink-0 p-1.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+            <Clock className="w-4 h-4" />
+          </div>
+          <div className="flex-1 leading-relaxed">
+            <span className="font-semibold block text-amber-950 dark:text-amber-300">AI Limit Reached</span>
+            <span className="text-amber-900/90 dark:text-amber-200/90">{message.text}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.text);
