@@ -32,7 +32,7 @@ export default function ChatWindow() {
     scrollToBottom();
   }, [activeMessages.length, isThinking]);
   useEffect(() => {
-    if (conversationId) {
+    if (conversationId && !messages[conversationId]) {
       loadMessages(conversationId);
     }
   }, [conversationId]);

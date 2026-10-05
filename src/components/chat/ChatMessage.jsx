@@ -218,33 +218,7 @@ export default function ChatMessage({ message, conversationId }) {
               </span>
             </button>
 
-            <div className="h-3 w-px bg-slate-200 dark:bg-[#242424] mx-1" />
 
-            <button
-              type="button"
-              onClick={() => toggleFeedback(conversationId, message.id, "up")}
-              aria-label="Thumbs up"
-              title="Helpful"
-              className={`p-1.5 rounded-lg transition-colors ${message.feedback === "up"
-                ? "text-teal-600 bg-teal-50 dark:bg-teal-950/60 dark:text-teal-400"
-                : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#181818]"
-                }`}
-            >
-              <ThumbsUp className="w-3.5 h-3.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => toggleFeedback(conversationId, message.id, "down")}
-              aria-label="Thumbs down"
-              title="Not helpful"
-              className={`p-1.5 rounded-lg transition-colors ${message.feedback === "down"
-                ? "text-rose-600 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-400"
-                : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#181818]"
-                }`}
-            >
-              <ThumbsDown className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
       </div>

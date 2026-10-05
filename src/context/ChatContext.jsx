@@ -505,157 +505,160 @@ export function ChatProvider({ children }) {
     }));
 
     // =========================
-    // ASK GEMINI
+    // ASK GEMINI (NON-BLOCKING)
     // =========================
 
     setIsThinking(true);
 
-    try {
-      const token = await getAuthToken();
+    // Run AI request in background so the UI can navigate to the new chat immediately
+    (async () => {
+      try {
+        const token = await getAuthToken();
 
-      if (!token) {
-        showToast("Authentication required. Please sign in.", "error");
-        return conversation.id;
-      }
-
-      const response = await fetch(
-        "http://localhost:3001/api/chat",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            message: trimmedText,
-            image: attachment?.imageData || null,
-            imageMimeType:
-              attachment?.fileType || null,
-            medications: medications,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          const cooldownStr = data.retryAfter ? formatCooldown(data.retryAfter) : "";
-          const limitMsg = cooldownStr
-            ? `You've reached your AI chat limit. You can continue using Medora in ${cooldownStr}.`
-            : "You've reached your AI chat limit. Please try again later.";
-
-          showToast(limitMsg, "error");
-
-          const nowIso = new Date().toISOString();
-          const { data: aiMessage } = await supabase
-            .from("messages")
-            .insert({
-              conversation_id: conversation.id,
-              role: "assistant",
-              content: limitMsg,
-              created_at: nowIso,
-            })
-            .select()
-            .single();
-
-          setMessages((prev) => ({
-            ...prev,
-            [conversation.id]: [
-              ...(prev[conversation.id] || []),
-              {
-                id: aiMessage?.id || "rate-limit-" + Date.now(),
-                sender: "assistant",
-                text: limitMsg,
-                timestamp: nowIso,
-                isRateLimit: true,
-              },
-            ],
-          }));
-
-          return conversation.id;
+        if (!token) {
+          showToast("Authentication required. Please sign in.", "error");
+          return;
         }
 
-        throw new Error(
-          data.error ||
-          "Failed to get response from MedoraAI."
+        const response = await fetch(
+          "http://localhost:3001/api/chat",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              message: trimmedText,
+              image: attachment?.imageData || null,
+              imageMimeType:
+                attachment?.fileType || null,
+              medications: medications,
+            }),
+          }
         );
-      }
 
-      // =========================
-      // SAVE AI RESPONSE
-      // =========================
+        const data = await response.json();
 
-      const {
-        data: aiMessage,
-        error: aiMessageError,
-      } = await supabase
-        .from("messages")
-        .insert({
-          conversation_id: conversation.id,
-          role: "assistant",
-          content: data.response,
-          created_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
+        if (!response.ok) {
+          if (response.status === 429) {
+            const cooldownStr = data.retryAfter ? formatCooldown(data.retryAfter) : "";
+            const limitMsg = cooldownStr
+              ? `You've reached your AI chat limit. You can continue using Medora in ${cooldownStr}.`
+              : "You've reached your AI chat limit. Please try again later.";
 
-      if (aiMessageError) {
+            showToast(limitMsg, "error");
+
+            const nowIso = new Date().toISOString();
+            const { data: aiMessage } = await supabase
+              .from("messages")
+              .insert({
+                conversation_id: conversation.id,
+                role: "assistant",
+                content: limitMsg,
+                created_at: nowIso,
+              })
+              .select()
+              .single();
+
+            setMessages((prev) => ({
+              ...prev,
+              [conversation.id]: [
+                ...(prev[conversation.id] || []),
+                {
+                  id: aiMessage?.id || "rate-limit-" + Date.now(),
+                  sender: "assistant",
+                  text: limitMsg,
+                  timestamp: nowIso,
+                  isRateLimit: true,
+                },
+              ],
+            }));
+
+            return;
+          }
+
+          throw new Error(
+            data.error ||
+            "Failed to get response from MedoraAI."
+          );
+        }
+
+        // =========================
+        // SAVE AI RESPONSE
+        // =========================
+
+        const {
+          data: aiMessage,
+          error: aiMessageError,
+        } = await supabase
+          .from("messages")
+          .insert({
+            conversation_id: conversation.id,
+            role: "assistant",
+            content: data.response,
+            created_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (aiMessageError) {
+          console.error(
+            "Failed to save AI message:",
+            aiMessageError
+          );
+
+          showToast(
+            "AI responded, but the response could not be saved.",
+            "error"
+          );
+
+          return;
+        }
+
+        // =========================
+        // SHOW AI RESPONSE
+        // =========================
+
+        setMessages((prev) => ({
+          ...prev,
+          [conversation.id]: [
+            ...(prev[conversation.id] || []),
+            {
+              id: aiMessage.id,
+              sender: "assistant",
+              text: aiMessage.content,
+              timestamp: aiMessage.created_at,
+            },
+          ],
+        }));
+
+        // =========================
+        // UPDATE CONVERSATION TIME
+        // =========================
+
+        await supabase
+          .from("conversations")
+          .update({
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conversation.id);
+
+      } catch (error) {
         console.error(
-          "Failed to save AI message:",
-          aiMessageError
+          "Failed to get Gemini response:",
+          error
         );
 
         showToast(
-          "AI responded, but the response could not be saved.",
+          error.message ||
+          "Failed to get a response from MedoraAI.",
           "error"
         );
-
-        return conversation.id;
+      } finally {
+        setIsThinking(false);
       }
-
-      // =========================
-      // SHOW AI RESPONSE
-      // =========================
-
-      setMessages((prev) => ({
-        ...prev,
-        [conversation.id]: [
-          ...(prev[conversation.id] || []),
-          {
-            id: aiMessage.id,
-            sender: "assistant",
-            text: aiMessage.content,
-            timestamp: aiMessage.created_at,
-          },
-        ],
-      }));
-
-      // =========================
-      // UPDATE CONVERSATION TIME
-      // =========================
-
-      await supabase
-        .from("conversations")
-        .update({
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", conversation.id);
-
-    } catch (error) {
-      console.error(
-        "Failed to get Gemini response:",
-        error
-      );
-
-      showToast(
-        error.message ||
-        "Failed to get a response from MedoraAI.",
-        "error"
-      );
-    } finally {
-      setIsThinking(false);
-    }
+    })();
 
     return conversation.id;
   };
