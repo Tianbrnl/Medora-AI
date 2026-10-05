@@ -10,15 +10,17 @@ export default function AuthRequiredModal({ isOpen, onClose, pendingPrompt = "" 
 
   if (!isOpen) return null;
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
     login({ name: "Google User", email: "user@gmail.com", initials: "GU" });
     onClose();
     if (pendingPrompt && pendingPrompt.trim()) {
-      const newId = startNewConversation(pendingPrompt.trim());
-      navigate(`/chat/${newId}`);
-    } else {
-      navigate("/chat");
+      const newId = await startNewConversation(pendingPrompt.trim());
+      if (newId) {
+        navigate(`/chat/${newId}`);
+        return;
+      }
     }
+    navigate("/chat");
   };
 
   const handleEmailSignIn = () => {
