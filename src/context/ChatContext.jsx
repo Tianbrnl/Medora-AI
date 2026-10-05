@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { getInitials } from "../utils/userUtils";
+import { formatCooldown } from "../utils/dateUtils";
 import { supabase } from "../lib/supabase";
 
 const ChatContext = createContext();
@@ -356,6 +357,24 @@ export function ChatProvider({ children }) {
   };
 
   // =========================
+  // AUTH TOKEN HELPER
+  // =========================
+
+  const getAuthToken = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        return session.access_token;
+      }
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      return refreshed?.session?.access_token || null;
+    } catch (err) {
+      console.error("Error retrieving Supabase auth token:", err);
+      return null;
+    }
+  };
+
+  // =========================
   // START NEW CONVERSATION
   // =========================
 
@@ -492,12 +511,20 @@ export function ChatProvider({ children }) {
     setIsThinking(true);
 
     try {
+      const token = await getAuthToken();
+
+      if (!token) {
+        showToast("Authentication required. Please sign in.", "error");
+        return conversation.id;
+      }
+
       const response = await fetch(
         "http://localhost:3001/api/chat",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
           },
           body: JSON.stringify({
             message: trimmedText,
@@ -512,9 +539,46 @@ export function ChatProvider({ children }) {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 429) {
+          const cooldownStr = data.retryAfter ? formatCooldown(data.retryAfter) : "";
+          const limitMsg = cooldownStr
+            ? `You've reached your AI chat limit. You can continue using Medora in ${cooldownStr}.`
+            : "You've reached your AI chat limit. Please try again later.";
+
+          showToast(limitMsg, "error");
+
+          const nowIso = new Date().toISOString();
+          const { data: aiMessage } = await supabase
+            .from("messages")
+            .insert({
+              conversation_id: conversation.id,
+              role: "assistant",
+              content: limitMsg,
+              created_at: nowIso,
+            })
+            .select()
+            .single();
+
+          setMessages((prev) => ({
+            ...prev,
+            [conversation.id]: [
+              ...(prev[conversation.id] || []),
+              {
+                id: aiMessage?.id || "rate-limit-" + Date.now(),
+                sender: "assistant",
+                text: limitMsg,
+                timestamp: nowIso,
+                isRateLimit: true,
+              },
+            ],
+          }));
+
+          return conversation.id;
+        }
+
         throw new Error(
           data.error ||
-            "Failed to get response from MedoraAI."
+          "Failed to get response from MedoraAI."
         );
       }
 
@@ -586,7 +650,7 @@ export function ChatProvider({ children }) {
 
       showToast(
         error.message ||
-          "Failed to get a response from MedoraAI.",
+        "Failed to get a response from MedoraAI.",
         "error"
       );
     } finally {
@@ -693,12 +757,20 @@ export function ChatProvider({ children }) {
       // SEND MESSAGE + IMAGE TO GEMINI
       // =========================
 
+      const token = await getAuthToken();
+
+      if (!token) {
+        showToast("Authentication required. Please sign in.", "error");
+        return;
+      }
+
       const response = await fetch(
         "http://localhost:3001/api/chat",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
           },
           body: JSON.stringify({
             message: trimmedText,
@@ -712,6 +784,43 @@ export function ChatProvider({ children }) {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 429) {
+          const cooldownStr = data.retryAfter ? formatCooldown(data.retryAfter) : "";
+          const limitMsg = cooldownStr
+            ? `You've reached your AI chat limit. You can continue using Medora in ${cooldownStr}.`
+            : "You've reached your AI chat limit. Please try again later.";
+
+          showToast(limitMsg, "error");
+
+          const nowIso = new Date().toISOString();
+          const { data: aiMessage } = await supabase
+            .from("messages")
+            .insert({
+              conversation_id: conversationId,
+              role: "assistant",
+              content: limitMsg,
+              created_at: nowIso,
+            })
+            .select()
+            .single();
+
+          setMessages((prev) => ({
+            ...prev,
+            [conversationId]: [
+              ...(prev[conversationId] || []),
+              {
+                id: aiMessage?.id || "rate-limit-" + Date.now(),
+                sender: "assistant",
+                text: limitMsg,
+                timestamp: nowIso,
+                isRateLimit: true,
+              },
+            ],
+          }));
+
+          return;
+        }
+
         throw new Error(
           data.error ||
           "Failed to get response from MedoraAI."
@@ -835,10 +944,18 @@ export function ChatProvider({ children }) {
     setIsThinking(true);
 
     try {
+      const token = await getAuthToken();
+
+      if (!token) {
+        showToast("Authentication required. Please sign in.", "error");
+        return;
+      }
+
       const response = await fetch("http://localhost:3001/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
           message: userPromptMessage.text,
@@ -849,6 +966,16 @@ export function ChatProvider({ children }) {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 429) {
+          const cooldownStr = data.retryAfter ? formatCooldown(data.retryAfter) : "";
+          const limitMsg = cooldownStr
+            ? `You've reached your AI chat limit. You can continue using Medora in ${cooldownStr}.`
+            : "You've reached your AI chat limit. Please try again later.";
+
+          showToast(limitMsg, "error");
+          return;
+        }
+
         throw new Error(
           data.error || "Failed to get response from MedoraAI."
         );
@@ -883,11 +1010,11 @@ export function ChatProvider({ children }) {
         [conversationId]: (prev[conversationId] || []).map((msg) =>
           msg.id === messageId
             ? {
-                ...msg,
-                text: data.response,
-                timestamp: nowIso,
-                feedback: null,
-              }
+              ...msg,
+              text: data.response,
+              timestamp: nowIso,
+              feedback: null,
+            }
             : msg
         ),
       }));

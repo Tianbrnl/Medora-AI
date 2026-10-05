@@ -62,3 +62,23 @@ export function formatMessageTimestamp(timestamp) {
 
   return `${dateString} at ${timeString}`;
 }
+
+/**
+ * Formats a duration in seconds into human-readable cooldown (e.g. "5h 42m", "15m", "45s").
+ */
+export function formatCooldown(seconds) {
+  if (!seconds || seconds <= 0) return "soon";
+
+  const totalSecs = Math.max(1, Math.round(seconds));
+  const hours = Math.floor(totalSecs / 3600);
+  const minutes = Math.floor((totalSecs % 3600) / 60);
+  const secs = totalSecs % 60;
+
+  if (hours > 0) {
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+  }
+  if (minutes > 0) {
+    return secs > 0 ? `${minutes}m ${secs}s` : `${minutes}m`;
+  }
+  return `${secs}s`;
+}
