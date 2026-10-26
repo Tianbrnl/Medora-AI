@@ -15,7 +15,7 @@ const genAI = new GoogleGenerativeAI(
 );
 
 const model = genAI.getGenerativeModel({
-    model: "gemini-3.7-flash",
+    model: "gemini-3.8-flash",
 });
 
 export async function askGemini(
